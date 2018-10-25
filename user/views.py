@@ -344,7 +344,7 @@ def DelAction(request):
             return JsonResponse({"code":500})
 
 # 给课程添加评论
-def addComment(request):
+def addCourseComment(request):
     try:
         if request.method=="POST":
             data = json.loads(request.body.decode('utf-8'))
@@ -371,8 +371,38 @@ def addComment(request):
         print(ex)
         return JsonResponse({"code":"404"})
 
+
+# 删除评论
+def delCourseComment(request):
+    try:
+        if request.method=="POST":
+            data = json.loads(request.body.decode('utf-8'))
+            content=data['content']
+
+            course_id = int(data['cid'])
+            data = data['headers']
+            token=data['token']
+            res=toto.openToken(token)
+            # result=models.AddCourse.objects.filter(course_id=course_id,user_id=res['user_id']).values()
+            if res:
+                addcomment = {
+                    'course_id': course_id,
+                    'user_id': res['user_id'],
+                    'content':content,
+                }
+                CourseComment.objects.create(**addcomment)
+                # print(res['user_id'])
+                return JsonResponse({"code":"210"})
+            else:
+                return JsonResponse({"code":"没登陆"})
+
+    except Exception as ex:
+        print(ex)
+        return JsonResponse({"code":"404"})
+
+
 # 给课程评论点赞
-def likeComment(request):
+def likeCourseComment(request):
     try:
         if request.method=="POST":
             data = json.loads(request.body.decode('utf-8'))

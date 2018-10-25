@@ -19,9 +19,9 @@ urlpatterns = [
     # 修改用户信息
     url(r'upuser/', views.UpUser, name='UpUser'),
     # 给课程添加评论
-    url(r'addcomment/', views.addComment, name='addComment'),
+    url(r'addcoursecomment/', views.addCourseComment, name='addCourseComment'),
     # 给评论点赞
-    url(r'likecomment/', views.likeComment, name='likeComment'),
+    url(r'likecoursecomment/', views.likeCourseComment, name='likeCourseComment'),
     # 添加地址
     url(r'useraddress/',views.UserAddress,name='UserAddress'),
     # 删除地址
