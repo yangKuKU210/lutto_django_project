@@ -41,7 +41,7 @@ class Course(models.Model):
     machine = models.ForeignKey(to='Machine', to_field='id', on_delete=models.CASCADE)
     minute_avg = models.CharField(max_length=50)
     recipes = models.ForeignKey(to='recipes.RecipesPlan', to_field="id", on_delete=models.CASCADE)
-
+    useraddcount=models.IntegerField(default=0)
 
 # 课程训练身体部位中间表
 class CourseTrainPart(models.Model):

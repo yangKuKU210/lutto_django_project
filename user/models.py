@@ -18,15 +18,18 @@ class Icon(models.Model):
     icon_url = models.CharField(max_length=254)
 
 class UserInfo(models.Model):
-    name = models.CharField(max_length=50)
-    icon=models.ForeignKey(to='Icon',to_field='id',on_delete=models.CASCADE)
-    height = models.CharField(max_length=50)
-    width = models.CharField(max_length=50)
-    birth = models.DateField()
+    name = models.CharField(max_length=50, null=True)
+    icon=models.ForeignKey(to='Icon',to_field='id',on_delete=models.CASCADE,default=1)
+    height = models.CharField(max_length=50,null=True)
+    width = models.CharField(max_length=50, null=True)
+    birth = models.DateField( null=True)
     note1 = models.CharField(max_length=50, null=True)
     note2 = models.CharField(max_length=50, null=True)
-    sex = models.ForeignKey(to='Sex',to_field='id',on_delete=models.CASCADE)
+    sex = models.ForeignKey(to='Sex',to_field='id',on_delete=models.CASCADE,null=True)
     user = models.ForeignKey(to='User',to_field='id',on_delete=models.CASCADE,default=1)
+    qinming=models.CharField(max_length=50, null=True)
+    qiandaodays=models.IntegerField(default=0,null=True)
+    qiandaostatus=models.IntegerField(default=0,null=True)
 
 
 class Intergral(models.Model):
@@ -53,5 +56,12 @@ class AddGood(models.Model):
     good = models.ForeignKey(to='shop.Goods', to_field='id', on_delete=models.CASCADE)
     user = models.ForeignKey(to='User', to_field='id', on_delete=models.CASCADE)
     num=models.IntegerField(default=0)
+
+
+# 用户注册暂存信息
+class registertemp(models.Model):
+    telephone = models.CharField(max_length=20)
+    validate = models.CharField(max_length=20)
+    expiretime = models.BigIntegerField()
 
 

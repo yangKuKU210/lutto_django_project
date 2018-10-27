@@ -41,11 +41,11 @@ def search(request, index, cname):
     end = pagesize * index
 
     if cname:
-        courses = models.Course.objects.filter(name__icontains=cname)[start:end].values('id', 'name', 'day',
+        courses = models.Course.objects.order_by('-useraddcount').filter(name__icontains=cname)[start:end].values('id', 'name', 'day',
                                                                                         'type__type_name',
                                                                                         'level__level', 'picture__url')
     else:
-        courses = models.Course.objects.all()[start:end].values('id', 'name', 'day', 'type__type_name', 'level__level',
+        courses = models.Course.objects.order_by('-useraddcount').all()[start:end].values('id', 'name', 'day', 'type__type_name', 'level__level',
                                                                 'picture__url')
     print(courses)
 
@@ -227,7 +227,6 @@ def getCourseComment(request):
             # 获取课程id
             cid = data['cid']
             comments = models.CourseComment.objects.order_by('-time').filter(course_id=cid)
-            print(comments)
             # 新建list对数据封装
             comment_list = []
             # 遍历每个对象
@@ -239,12 +238,15 @@ def getCourseComment(request):
                     'time'].strftime('%Y-%m-%d %H:%I:%S')
                 c_dict['like'] = models.CourseCommentLike.objects.filter(comment_id=c.id).count()
                 c_dict['replynum'] = models.CourseCommentReply.objects.filter(comment_id=c.id).count()
-
-                c_dict['like_flag'] = False
+                c_dict['deletecomment_flag'] = False
                 if res:
-                    flag = models.CourseCommentLike.objects.filter(comment_id=c.id, user_id=res['user_id']).count()
-                    if flag:
+                    flag = models.CourseComment.objects.filter(id=c.id, user_id=res['user_id']).count()
+                    flag1 = models.CourseCommentLike.objects.filter(comment_id=c.id, user_id=res['user_id']).count()
+                    if flag1:
                         c_dict['like_flag'] = True
+                    if flag:
+                        c_dict['deletecomment_flag'] = True
+                c_dict['like_flag'] = False
                 c_dict['username'] = UserInfo.objects.filter(user_id=c.user_id).values('name')[0]['name']
                 c_dict['icon'] = UserInfo.objects.filter(user_id=c.user_id).values('icon__icon_url')[0][
                     'icon__icon_url']
@@ -260,14 +262,18 @@ def getCourseComment(request):
                     r_dict['content'] = models.CourseCommentReply.objects.filter(id=r.id).values('content')[0][
                         'content']
                     c_dict['reply_flag'] = False
+                    r_dict['deletereply_flag'] = False
+
                     if res:
                         flag = models.CourseCommentReply.objects.filter(comment_id=c.id, user_id=res['user_id']).count()
+                        flag1 = models.CourseCommentReply.objects.filter(id=r.id, comment_id=r.comment_id,
+                                                                         user_id=res['user_id']).count()
                         if flag:
                             c_dict['reply_flag'] = True
+                        if flag1:
+                            r_dict['deletereply_flag'] = True
                     reply_list.append(r_dict)
                 c_dict['commnetreply'] = reply_list
-                # print( c_dict['commnetreply'])
-
                 comment_list.append(c_dict)
             return HttpResponse(json.dumps(comment_list, ensure_ascii=False))
     except Exception as ex:
@@ -282,6 +288,8 @@ def getHotCourseComment(request):
             # 获取课程类型全部queryset对象
             data = json.loads(request.body.decode('utf-8'))
             cid = data['cid']
+            token = data['headers']['token']
+            res = toto.openToken(token)
             # 解析token
             # 判断是否登录
             # models.CourseCommentLike.objects.filter('comment_id').count()
@@ -292,18 +300,20 @@ def getHotCourseComment(request):
             for c in comments:
                 # 将每个对象转换为字典类型
                 c_dict = model_to_dict(c)
+                c_dict['id'] = models.CourseComment.objects.filter(id=c.id).values('id')[0]['id']
                 c_dict['time'] = models.CourseComment.objects.filter(id=c.id).values('time').values('time')[0][
                     'time'].strftime('%Y-%m-%d %H:%I:%S')
                 c_dict['like'] = models.CourseCommentLike.objects.filter(comment_id=c.id).count()
                 c_dict['replynum'] = models.CourseCommentReply.objects.filter(comment_id=c.id).count()
-
-                c_dict['like_flag'] = False
-                token = data['headers']['token']
-                res = toto.openToken(token)
+                c_dict['deletecomment_flag'] = False
                 if res:
-                    flag = models.CourseCommentLike.objects.filter(comment_id=c.id, user_id=res['user_id']).count()
-                    if flag:
+                    flag = models.CourseComment.objects.filter(id=c.id, user_id=res['user_id']).count()
+                    flag1 = models.CourseCommentLike.objects.filter(comment_id=c.id, user_id=res['user_id']).count()
+                    if flag1:
                         c_dict['like_flag'] = True
+                    if flag:
+                        c_dict['deletecomment_flag'] = True
+                c_dict['like_flag'] = False
                 c_dict['username'] = UserInfo.objects.filter(user_id=c.user_id).values('name')[0]['name']
                 c_dict['icon'] = UserInfo.objects.filter(user_id=c.user_id).values('icon__icon_url')[0][
                     'icon__icon_url']
@@ -318,10 +328,19 @@ def getHotCourseComment(request):
                         'icon__icon_url']
                     r_dict['content'] = models.CourseCommentReply.objects.filter(id=r.id).values('content')[0][
                         'content']
+                    c_dict['reply_flag'] = False
+                    r_dict['deletereply_flag'] = False
 
+                    if res:
+                        flag = models.CourseCommentReply.objects.filter(comment_id=c.id, user_id=res['user_id']).count()
+                        flag1 = models.CourseCommentReply.objects.filter(id=r.id, comment_id=r.comment_id,
+                                                                         user_id=res['user_id']).count()
+                        if flag:
+                            c_dict['reply_flag'] = True
+                        if flag1:
+                            r_dict['deletereply_flag'] = True
                     reply_list.append(r_dict)
                 c_dict['commnetreply'] = reply_list
-
                 comment_list.append(c_dict)
             return HttpResponse(json.dumps(comment_list[0:3], ensure_ascii=False))
     except Exception as ex:
@@ -357,6 +376,51 @@ def replyComment(request):
         return JsonResponse({"code": "404"})
 
 
+# 删除课程评论
+def delCourseComment(request):
+    try:
+        # 需要 评论id  token
+        if request.method == "POST":
+            data = json.loads(request.body.decode('utf-8'))
+            # content = data['content']
+            comment_id = int(data['commentid'])
+            token = data['headers']['token']
+            res = toto.openToken(token)
+            if res:
+                models.CourseComment.objects.filter(id=comment_id).delete()
+                return JsonResponse({"code": "210"})
+            else:
+                return JsonResponse({"code": "没登陆"})
+
+    except Exception as ex:
+        print(ex)
+        return JsonResponse({"code": "404"})
+
+
+# 删除回复
+def delCourseReply(request):
+    try:
+        # 需要 回复id  token
+        if request.method == "POST":
+            data = json.loads(request.body.decode('utf-8'))
+            # content = data['content']
+            replyid = int(data['replyid'])
+            token = data['headers']['token']
+            res = toto.openToken(token)
+            # result=models.AddCourse.objects.filter(course_id=course_id,user_id=res['user_id']).values()
+            if res:
+
+                models.CourseCommentReply.objects.filter(id=replyid).delete()
+                # print(res['user_id'])
+                return JsonResponse({"code": "210"})
+            else:
+                return JsonResponse({"code": "没登陆"})
+
+    except Exception as ex:
+        print(ex)
+        return JsonResponse({"code": "404"})
+
+
 # 添加课程
 def addCourse(request):
     try:
@@ -369,8 +433,11 @@ def addCourse(request):
             #
             if res:
                 result = user_models.AddCourse.objects.filter(course_id=course_id, user_id=res['user_id']).values()
+                addnum = models.Course.objects.filter(id=course_id).values('useraddcount')[0]['useraddcount']
                 if result:
                     user_models.AddCourse.objects.filter(course_id=course_id, user_id=res['user_id']).delete()
+                    res = addnum - 1
+                    models.Course.objects.filter(id=course_id).update(useraddcount =res)
                     return JsonResponse({"code": "410"})
                 else:
                     addcourse = {
@@ -378,7 +445,9 @@ def addCourse(request):
                         'user_id': res['user_id']
                     }
                     user_models.AddCourse.objects.create(**addcourse)
-                    # print(res['user_id'])
+                    # addnum = models.Course.objects.filter(id=course_id).values('useraddcount')[0]['useraddcount']
+                    res = addnum + 1
+                    models.Course.objects.filter(id=course_id).update(useraddcount=res)
                     return JsonResponse({"code": "210"})
     except Exception as ex:
         print(ex)

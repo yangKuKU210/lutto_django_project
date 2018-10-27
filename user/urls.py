@@ -11,7 +11,7 @@ urlpatterns = [
     url(r'^getUser\w*/(?P<myid>\d+)', views.getUserById, name='getUserById'),
     url(r'^$', views.index, name='index'),
     # 注册
-    url(r'regist/', views.regist, name='regist'),
+    url(r'regist/', views.regist_ser, name='regist'),
     # 修改密码
     url(r'change/', views.changePassword, name='changePassword'),
     #
@@ -42,5 +42,10 @@ urlpatterns = [
     url(r'getlove/', views.GetLove, name='GetLove'),
     # 用户删除收藏商品
     url(r'dellove/', views.DelLove, name='DelLove'),
+    url(r'qiandao/', views.QianDao, name='QianDao'),
+    url(r'upicon/', views.upIcon, name='upIcon'),
+    url(r'sendcode/', views.SendCode, name='SendCode'),
+    url(r'checkcode/', views.CheckCode, name='CheckCode'),
+    # url(r'getlove/', views.GetLoveGood, name='GetLoveGood'),
 
 ]

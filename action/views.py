@@ -60,7 +60,6 @@ def getactionmachine(request):
 #         搜索动作
 def search(request):
     try:
-
         conditions = {}
         con = json.loads(request.body)
         pagesize = 4
@@ -68,7 +67,6 @@ def search(request):
         start = pagesize * (index - 1)
         end = pagesize * index
         # print(con)
-
         if con['searchcontent']:
             conditions["name__regex"] = con['searchcontent']
         if con['levelcon']:
@@ -83,55 +81,7 @@ def search(request):
         actions = models.ActionLibrary.objects.filter(**conditions)[start:end].values('id', 'name', 'info',
                                                                                       'level__level', 'machine__name',
                                                                                       'muscle__name', 'picture__url')
-        # print(actions)
-        # if a:
-        #     con = json.loads(request.body)
-        #     models.ActionLibrary.objects.filter(**con).values()
 
-        # try:
-        #     # machine
-        #     name = request.GET.get('name')
-        #     index = request.GET.get('index')
-        #     pagesize = 20
-        #     if index:
-        #         index = int(index)
-        #     else:
-        #         index = 1
-        #     actions = []
-        #     if name:
-        #         action = list(
-        #             action_models.ActionLibrary.objects.filter(name__icontains=name)[pagesize * (index - 1):pagesize * index].values('id', 'name', 'info', 'times',
-        #                                                                                     'level__level', 'machine__name',
-        #                                                                                     'muscle__name'))
-        #         if action:
-        #             for i in range(len(action)):
-        #                 ss = {
-        #                     "action_id": action[i]['id'],
-        #                     "action_name": action[i]['name'],
-        #                     "action_info": action[i]['info'],
-        #                     "action_times": action[i]['times'],
-        #                     "action_level": action[i]['level__level'],
-        #                     "machine_name": action[i]['machine__name'],
-        #                     "muscle_name": action[i]['muscle__name']
-        #                 }
-        #                 actions.append(ss)
-        #     else:
-        #         action = list(
-        #             action_models.ActionLibrary.objects.all()[pagesize * (index - 1):pagesize * index].values('id', 'name', 'info', 'times', 'level__level',
-        #                                                              'machine__name', 'muscle__name'))
-        #         if action:
-        #             for i in range(len(action)):
-        #                 ss = {
-        #                     "action_id": action[i]['id'],
-        #                     "action_name": action[i]['name'],
-        #                     "action_info": action[i]['info'],
-        #                     "action_times": action[i]['times'],
-        #                     "action_level": action[i]['level__level'],
-        #                     "machine_name": action[i]['machine__name'],
-        #                     "muscle_name": action[i]['muscle__name']
-        #                 }
-        #                 actions.append(ss)
-        # print(list(actions))
         return HttpResponse(json.dumps(list(actions), ensure_ascii=False))
     except Exception as ex:
         return JsonResponse({"code": "500"})

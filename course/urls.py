@@ -29,8 +29,13 @@ urlpatterns = [
     url(r'getactionbycid/(?P<cid>.*)/',views.getActionByCid,name='getActionByCid'),
     # 课程详情页 获取课程评论信息
     url(r'getcoursecomment/',views.getCourseComment,name='getCourseComment'),
-    # 课程详情页 回复评论信息
-    url(r'replycomment/',views.replyComment,name='replyComment'),
     # 课程详情页 获取热门课程评论信息
     url(r'gethotcoursecomment/',views.getHotCourseComment,name='getHotCourseComment'),
+    #删除评论
+    url(r'deloursecomment/',views.delCourseComment,name='delCourseComment'),
+    #删除回复
+    url(r'delcoursereply/',views.delCourseReply,name='delCourseReply'),
+    # 课程详情页 回复评论信息
+    url(r'replycomment/',views.replyComment,name='replyComment'),
+
 ]

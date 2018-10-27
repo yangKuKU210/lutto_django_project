@@ -12,7 +12,7 @@ from user import models
 from utils.userlogin import *
 from utils.token import *
 # from utils import token as toto
-# from qiniu import Auth, put_file, etag
+from qiniu import Auth, put_file, etag
 # import qiniu.config
 from collections import OrderedDict
 import uuid
@@ -43,23 +43,49 @@ def login(request):
             return resp
         else:
             return JsonResponse(res)
-
-def regist(request):
+# 注册
+def regist_ser(newuser):
+    print('this is utils regist_ser')
     try:
-        if request.method == "POST":
-            newuser = json.loads(request.body)
-            res = regist_ser(newuser)
-            print(res)
-            if res and res['code'] == '203':
-                resp = JsonResponse(res)
-                token = makeToken(res['telephone'], res['user_id'])
-                resp['token'] = token
-                resp["Access-Control-Expose-Headers"] = "token"
-                return resp
+        telephone=newuser['telephone']
+        password=newuser['password']
+        passwords=newuser['passwords']
+
+        if password==passwords:
+            user=models.User.objects.filter(telephone=newuser['telephone']).values()
+
+            if len(user):
+                return {'code': '408'}  # 该用户已存在
             else:
-                return JsonResponse(res, safe=False)
+                import datetime
+                dt=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                user = {
+                    "telephone": telephone,
+                    "password": jiami(password),
+                    "regist_time":dt
+                }
+                print(dt)
+                res = models.User.objects.create(**user)
+                id=models.User.objects.filter(telephone=telephone).values('id')
+                ss={
+                    "intergral":0,
+                    "user_id":id[0]['id']
+                }
+                models.Intergral.objects.create(**ss)
+                bb={
+                    "user_id":id[0]['id']
+                }
+                models.UserInfo.objects.create(**bb)
+                if res:
+
+                    return {'code': '203', 'id': id[0]['id'],'telephone':user['telephone']}
+                else:
+                    return {'code': '500'}  # 代码错了傻屌
+        else:
+            return {'code':'407'}  # 两次密码不一致
+
     except Exception as ex:
-        return JsonResponse({"code":"500"})
+        print(ex)
 
 def changePassword(request):
     try:
@@ -241,44 +267,153 @@ def GetAddress(request):
         except Exception as ex:
             return JsonResponse({"code":"500"})
 
-
 # 七牛云token
 def qiniuToken(request):
     try:
-        if request.method=='POST':
+        r =request.GET.get('name')
+        # print(r)
+        access_key = 'Ib28fQUwpKMw82G4NNw-TAdDooGGrRWOdadnuamM'
+        secret_key = 'evfP2KZpTRrP3rqO39I7Sc5n18_QxCbvFgSuArxc'
+        # 构建鉴权对象
+        q = Auth(access_key, secret_key)
+        # 要上传的空间
+        bucket_name = 'lotto'
+        # 上传到七牛后保存的文件名
+        file = r
+        print(file)
+        key = str(uuid.uuid4()) + '.' + file.split('.')[-1]
+        # 生成上传 Token，可以指定过期时间等 一天
+        token = q.upload_token(bucket_name, key, 3600)
+        return JsonResponse({"token":token, "filename": key})
+
+    except Exception as ex:
+        return JsonResponse({"code":"500"})
+
+#验证验证码
+def CheckCode(request):
+
+    if request.method == "POST":
+        try:
+            r = json.loads(request.body)
+            token=r['headers']['token']
+            res=openToken(token)
+            if res:
+                code=r['validate']
+                # print(type(code))
+                # print(code)
+                telephone=r['telephone']
+                now_time = time.time()
+                # print(now_time)
+                cc=list(models.registertemp.objects.filter(telephone=telephone).values('expiretime','validate'))
+                print(cc)
+                code_time=cc[0]['expiretime']
+                CODE=cc[0]['validate']
+                # print(type(CODE))
+                print(CODE)
+                print(code_time)
+                if now_time>code_time:
+                    return JsonResponse({"code":"429"})
+                else:
+                    if CODE==code:
+                        models.UserInfo.objects.filter(id=res['user_id']).update(telephone=telephone)
+                        return JsonResponse({"code": "223"})
+                    else:
+                        return JsonResponse({"code":"430"})
+
+            else:
+                return JsonResponse({"code":"411"})
+
+        except Exception as ex:
+            print(ex)
+            return JsonResponse({"code":"500"})
+
+#发送验证码
+def SendCode(request):
+    if request.method == "POST":
+        try:
+            r = json.loads(request.body)
+            print(r)
+            token=r['headers']['token']
+            res=openToken(token)
+            if res:
+                telephone=r['telephone']
+                print(telephone)
+                c = random.randrange(1000, 9999)
+                code = str(c)
+                smsContent='【乐途运动】您的验证码为{0}，请于{1}分钟内正确输入，如非本人操作，请忽略此短信。'.format(code,5)
+                sendIndustrySms(telephone,smsContent)
+                now_date = time.time() + 300
+                telephone1=list(models.registertemp.objects.filter(telephone=telephone).values())
+                print(telephone1)
+                if telephone1:
+                    models.registertemp.objects.filter(telephone=telephone).update(validate=code)
+                else:
+                    ss = {
+                        "validate": code,
+                        "expiretime": now_date,
+                        "telephone": telephone
+                    }
+                    models.registertemp.objects.create(**ss)
+            else:
+                return JsonResponse({"code":"411"})
+            return JsonResponse({"code": "222"})
+        except Exception as ex:
+            print(ex)
+            return JsonResponse({"code""500"})
+# 签到
+def QianDao(request):
+    if request.method=='POST':
+        try:
             r=json.loads(request.body)
             token=r['headers']['token']
             res=openToken(token)
             if res:
-                access_key = 'Ib28fQUwpKMw82G4NNw-TAdDooGGrRWOdadnuamM'
-                secret_key = 'evfP2KZpTRrP3rqO39I7Sc5n18_QxCbvFgSuArxc'
-                # 构建鉴权对象
-                q = Auth(access_key, secret_key)
-                # 要上传的空间
-                bucket_name = 'Lotto'
-                # 上传到七牛后保存的文件名
-                file = r['key']
-                print(file)
-                key = str(uuid.uuid4()) + '.' + file.split('.')[-1]
-                # 生成上传 Token，可以指定过期时间等 一天
-                token = q.upload_token(bucket_name, key, 3600)
-                return JsonResponse({"token": token, "filename": key})
+                qiandao=list(models.UserInfo.objects.filter(user_id=res['user_id']).values('qiandaostatus','qiandaodays'))
+                # 查看签到状态1未签到，2已签到
+                qiandaodays=qiandao[0]['qiandaodays']+1
+                if qiandao[0]['qiandaostatus']==1:
+                    # 如果未签到，将签到状态改为2 累计签到天数+1，并且给用户积分+5
+                    models.UserInfo.objects.filter(user_id=res['user_id']).update(qiandaostatus=2,qiandaodays=qiandaodays)
+                    jf=list(models.Intergral.objects.filter(user_id=res['user_id']).values('intergral'))
+                    jifen=jf[0]['intergral']
+                    user_jifen=int(jifen)+5
+                    models.Intergral.objects.filter(user_id=res['user_id']).update(intergral=user_jifen)
+                else:
+                    return JsonResponse({"code":"428"})
             else:
                 return JsonResponse({"code":"411"})
-    except Exception as ex:
-        return JsonResponse({"code":"500"})
+            return JsonResponse({"code":"220"})
+        except Exception as ex:
+            print(ex)
+            return JsonResponse({"code":"500"})
 
-    try:
-        fname=request.GET.get('fname')
-        user_id=request.GET.get('user_id')
-        obj = models.Icon.objects.create(icon_url=fname)
-        # 当前插入图片的ID为obj.id
-        # 修改用户的头像
-        count = models.UserInfo.objects.filter(user_id=user_id).update(icon_id=obj.id)
-        return JsonResponse({"res": "修改成功"}, json_dumps_params={'ensure_ascii': False})
-    except Exception as e:
-        print(e)
-        return JsonResponse({"res": "修改失败"}, json_dumps_params={'ensure_ascii': False})
+# 用户上传头像（保存头像文件名称）（更改用户头像）
+def upIcon(request):
+   if request.method=='POST':
+       try:
+           r=json.loads(request.body)
+           # print(r)
+           token=r['headers']['token']
+           res=openToken(token)
+           if res:
+               ss={
+                   "icon_url":r['url']
+               }
+               # 将拿到的url存入数据库，并且获得的头像的id
+               models.Icon.objects.create(**ss)
+               urll=list(models.Icon.objects.filter(icon_url=r['url']).values('id'))
+               url=urll[0]['id']
+               # print(url)
+               # 将用户信息表中得到头像id换成用户上传的url_id
+               models.UserInfo.objects.filter(user_id=res['user_id']).update(icon_id=url)
+           else:
+               return  JsonResponse({"code":"411"})
+           return JsonResponse({"code": "221"})
+       except Exception as ex:
+           print(ex)
+           return JsonResponse({"code":"500"})
+
+
 
 def upload(requset):
     if requset.method=='POST':
