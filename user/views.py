@@ -1,6 +1,7 @@
 from django.http import HttpResponse,JsonResponse
 from django.shortcuts import render,redirect,reverse
 import json
+import time
 from datetime import datetime,timedelta
 from user import models
 from course.models import CourseComment
@@ -20,6 +21,7 @@ import random
 from course import models as course_models
 from shop import models as shop_models
 from datetime import datetime,timedelta
+from user.miaodi import sendIndustrySms
 def index(request):
     # return render(request,'user_index.html')
     return HttpResponse('i am index')
@@ -30,9 +32,12 @@ def getUserById(request,myid):
     url=reverse('user:index',kwargs={"id":myid})
     print(url)
     return  redirect(url)
+
+
 def login(request):
     if request.method == "POST":
         user = json.loads(request.body)
+        # 调用登录方法
         res=login_ser(user)
         resp=JsonResponse(res)
         # print(res)
@@ -43,63 +48,40 @@ def login(request):
             return resp
         else:
             return JsonResponse(res)
-# 注册
-def regist_ser(newuser):
-    print('this is utils regist_ser')
-    try:
-        telephone=newuser['telephone']
-        password=newuser['password']
-        passwords=newuser['passwords']
 
-        if password==passwords:
-            user=models.User.objects.filter(telephone=newuser['telephone']).values()
 
-            if len(user):
-                return {'code': '408'}  # 该用户已存在
+def regist(request):
+    if request.method == "POST":
+        try:
+            newuser = json.loads(request.body)
+            # 调用注册方法
+            res = regist_ser(newuser)
+            if res and res['code'] == '203':
+
+                resp = JsonResponse(res)
+                token = makeToken(res['id'],res['telephone'])
+                resp['token'] = token
+                resp["Access-Control-Expose-Headers"] = "token"
+                return resp
             else:
-                import datetime
-                dt=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                user = {
-                    "telephone": telephone,
-                    "password": jiami(password),
-                    "regist_time":dt
-                }
-                print(dt)
-                res = models.User.objects.create(**user)
-                id=models.User.objects.filter(telephone=telephone).values('id')
-                ss={
-                    "intergral":0,
-                    "user_id":id[0]['id']
-                }
-                models.Intergral.objects.create(**ss)
-                bb={
-                    "user_id":id[0]['id']
-                }
-                models.UserInfo.objects.create(**bb)
-                if res:
-
-                    return {'code': '203', 'id': id[0]['id'],'telephone':user['telephone']}
-                else:
-                    return {'code': '500'}  # 代码错了傻屌
-        else:
-            return {'code':'407'}  # 两次密码不一致
-
-    except Exception as ex:
-        print(ex)
+                return JsonResponse(res, safe=False)
+        except Exception as ex:
+            return JsonResponse({"code":"500"})
 
 def changePassword(request):
     try:
         if request.method == "POST":
             user = json.loads(request.body)
             print(user)
+            # 调用修改密码方法
             res = change_password(user)
             print(res)
-            # print(res)
-            if res and res['code'] == '203':
+            if res and res['code'] == '204':
+                print(res)
                 resp = JsonResponse(res)
-                # token = makeToken(res['id'],res['telephone'])
-                token = makeToken(res['telephone'], res['user_id'])
-
+                print(res)
+                token = makeToken(res['id'],res['telephone'])
+                print(token)
                 resp['token'] = token
                 resp["Access-Control-Expose-Headers"] = "token"
                 return resp
@@ -107,57 +89,47 @@ def changePassword(request):
                 return JsonResponse(res, safe=False)
     except Exception as ex:
        return JsonResponse({"code":"500"})
-
-def userInfo(request):
-    try:
-        # if request.method=="POST":
-        #     token=request.META.get("HTTP_TOKEN")
-        #     res=toto.openToken(token)
-        #     user_id=res['user_id']
-        #     result=models.UserInfo.objects.filter()
-        return JsonResponse({"code":"203"})
-    except Exception as ex:
-        return JsonResponse({"code":"404"})
-
+# 完善用户个人信息
 def UpUser(request):
     try:
         if request.method=="POST":
-
             r=json.loads(request.body)
-            token = r["token"]
-            print(r)
-            res=toto.openToken(token)
-            user_id=res['user_id']
-            print(user_id)
-            # print(r['sex'])
-            s=list(models.Sex.objects.filter(name=r['sex']).values())
-            sex_id=s[0]['id']
-            # A=models.Sex.objects.get(name=r['sex'])
-            # print(type(A))
-            # print(A)
-            # print(sex_id)
-            icon_id=1
-            result=[]
-            ss={
-                "name":r['name'],
-                "height":r['height'],
-                "width":r['width'],
-                "birth":r['birth'],
-                "sex_id": sex_id,
-                "icon_id":icon_id,
-                "user_id":user_id
-            }
-            print(ss)
-            try:
-                models.UserInfo.objects.create(**ss)
-                # print('****'+aa)
-            except Exception as ex:
-                print(ex)
+            token = r['headers']['token']
+            res = toto.openToken(token)
+            if res:
+                user_id = res['user_id']
+                # if r['sex']:
+                #     s = list(models.Sex.objects.filter(name=r['sex']).values())
+                #     sex_id = s[0]['id']
+                #     print(sex_id)
+                # else:
+                #     sex_id = 1
+                icon_id = 1
+                result = []
+                ss = {
+                    "name": r['name'],
+                    "height": r['height'],
+                    "width": r['width'],
+                    "birth": r['birth'],
+                    "sex_id": r['sex'],
+                    "icon_id": icon_id,
+                    "user_id": user_id,
+                    "qinming": r['qianming']
+                }
+                # print(ss)
+                # 先判断用户有没有基本信息，有就替换，没有用就直接添加
+                res = models.UserInfo.objects.filter(user_id=user_id).values()
+                if res:
+                    models.UserInfo.objects.filter(user_id=user_id).update(**ss)
+                else:
+                    models.UserInfo.objects.create(**ss)
+            else:
+                return JsonResponse({"code": "411"})
         return JsonResponse({"code": "201"})
     except Exception as ex:
-        return JsonResponse({"code":"404"})
-
-
+        print(ex)
+        return JsonResponse({"code":"500"})
+# 添加用户地址
 def UserAddress(request):
     if request.method=='POST':
         try:
@@ -181,11 +153,8 @@ def UserAddress(request):
                         "youbian":address['youbian'],
                         "recievename":address['recievename']
                     }
-                    print(ss)
-                    try:
-                        models.Address.objects.create(**ss)
-                    except Exception as ex:
-                        print(ex)
+                    models.Address.objects.create(**ss)
+
                     return JsonResponse({"code":"202"})
                 else:
                     return JsonResponse({"code":"411"})
@@ -193,15 +162,16 @@ def UserAddress(request):
                 return JsonResponse({"code": "411"})
         except Exception as ex:
             return JsonResponse({"code":"500"})
-
+# 删除用户地址
 def delAddress(request):
     if request.method=='POST':
         try:
             r = json.loads(request.body)
-            print(r)
+            # print(r)
             token = r['headers']['token']
             res = openToken(token)
             if res:
+                # 先检查有没有地址，没有返回413
                 result=models.Address.objects.filter(id=r['id']).values_list()
                 if result:
                     models.Address.objects.filter(id=r['id']).delete()
@@ -212,154 +182,6 @@ def delAddress(request):
                 return JsonResponse({"code":"411"})
         except Exception as ex:
             return JsonResponse({"code":"500"})
-
-def GetNameByTel(request):
-    try:
-        if request.method=="POST":
-            # print('this is getnamebytel')
-            r=json.loads(request.body)
-            token=r['headers']['token']
-            # print(token)
-            res=openToken(token)
-            # print(res)
-            if res:
-                user_id=res['user_id']
-                name=list(models.UserInfo.objects.filter(user_id=user_id).values('name','sex','height','width','icon__icon_url','birth'))
-                if name:
-                    user_year = str(name[0]['birth']).split('-')[0]
-                    now_year = str(datetime.now()).split('-')[0]
-                    age = int(now_year) - int(user_year)
-                    userinfo = []
-                    ss = {
-                        "name": name[0]['name'],
-                        "sex": name[0]['sex'],
-                        "height": name[0]['height'],
-                        "width": name[0]['width'],
-                        "icon_url": name[0]['icon__icon_url'],
-                        "age": age
-                    }
-                    # print(ss)
-                    userinfo.append(ss)
-                    return HttpResponse(json.dumps(userinfo,ensure_ascii=False))
-                else:
-                    return JsonResponse({"code":"415"})
-            else:
-                return JsonResponse({"code":"411"})
-    except Exception as ex:
-        return JsonResponse({"code":"500"})
-
-def GetAddress(request):
-    if request.method=='POST':
-        try:
-            r = json.loads(request.body)
-            token = r['headers']['token']
-            if token:
-                res = openToken(token)
-                if res:
-                    user_id = res['user_id']
-                    print(user_id)
-                    address=list(models.Address.objects.filter(user_id=user_id).values())
-                    if address:
-                        pass
-                    else:
-                        return JsonResponse({"code":"419"})
-            return HttpResponse(json.dumps(address,ensure_ascii=False))
-        except Exception as ex:
-            return JsonResponse({"code":"500"})
-
-# 七牛云token
-def qiniuToken(request):
-    try:
-        r =request.GET.get('name')
-        # print(r)
-        access_key = 'Ib28fQUwpKMw82G4NNw-TAdDooGGrRWOdadnuamM'
-        secret_key = 'evfP2KZpTRrP3rqO39I7Sc5n18_QxCbvFgSuArxc'
-        # 构建鉴权对象
-        q = Auth(access_key, secret_key)
-        # 要上传的空间
-        bucket_name = 'lotto'
-        # 上传到七牛后保存的文件名
-        file = r
-        print(file)
-        key = str(uuid.uuid4()) + '.' + file.split('.')[-1]
-        # 生成上传 Token，可以指定过期时间等 一天
-        token = q.upload_token(bucket_name, key, 3600)
-        return JsonResponse({"token":token, "filename": key})
-
-    except Exception as ex:
-        return JsonResponse({"code":"500"})
-
-#验证验证码
-def CheckCode(request):
-
-    if request.method == "POST":
-        try:
-            r = json.loads(request.body)
-            token=r['headers']['token']
-            res=openToken(token)
-            if res:
-                code=r['validate']
-                # print(type(code))
-                # print(code)
-                telephone=r['telephone']
-                now_time = time.time()
-                # print(now_time)
-                cc=list(models.registertemp.objects.filter(telephone=telephone).values('expiretime','validate'))
-                print(cc)
-                code_time=cc[0]['expiretime']
-                CODE=cc[0]['validate']
-                # print(type(CODE))
-                print(CODE)
-                print(code_time)
-                if now_time>code_time:
-                    return JsonResponse({"code":"429"})
-                else:
-                    if CODE==code:
-                        models.UserInfo.objects.filter(id=res['user_id']).update(telephone=telephone)
-                        return JsonResponse({"code": "223"})
-                    else:
-                        return JsonResponse({"code":"430"})
-
-            else:
-                return JsonResponse({"code":"411"})
-
-        except Exception as ex:
-            print(ex)
-            return JsonResponse({"code":"500"})
-
-#发送验证码
-def SendCode(request):
-    if request.method == "POST":
-        try:
-            r = json.loads(request.body)
-            print(r)
-            token=r['headers']['token']
-            res=openToken(token)
-            if res:
-                telephone=r['telephone']
-                print(telephone)
-                c = random.randrange(1000, 9999)
-                code = str(c)
-                smsContent='【乐途运动】您的验证码为{0}，请于{1}分钟内正确输入，如非本人操作，请忽略此短信。'.format(code,5)
-                sendIndustrySms(telephone,smsContent)
-                now_date = time.time() + 300
-                telephone1=list(models.registertemp.objects.filter(telephone=telephone).values())
-                print(telephone1)
-                if telephone1:
-                    models.registertemp.objects.filter(telephone=telephone).update(validate=code)
-                else:
-                    ss = {
-                        "validate": code,
-                        "expiretime": now_date,
-                        "telephone": telephone
-                    }
-                    models.registertemp.objects.create(**ss)
-            else:
-                return JsonResponse({"code":"411"})
-            return JsonResponse({"code": "222"})
-        except Exception as ex:
-            print(ex)
-            return JsonResponse({"code""500"})
 # 签到
 def QianDao(request):
     if request.method=='POST':
@@ -386,7 +208,103 @@ def QianDao(request):
         except Exception as ex:
             print(ex)
             return JsonResponse({"code":"500"})
+# 得到用户基本信息
+def GetNameByTel(request):
+    try:
+        if request.method=="POST":
+            print('this getnamebytel')
+            # print('this is getnamebytel')
+            r=json.loads(request.body)
+            # print(r)
+            token=r['headers']['token']
+            # print(token)
+            res=openToken(token)
+            # print(res)
+            if res:
+                user_id=res['user_id']
+                name=list(models.UserInfo.objects.filter(user_id=user_id).values('name','sex','height','width','icon__icon_url','birth','qinming','qiandaodays','qiandaostatus','user__intergral__intergral'))
+                if name:
+                    from datetime import datetime
+                    user_year = str(name[0]['birth']).split('-')[0]
+                    now_year = str(datetime.now()).split('-')[0]
+                    age = int(now_year) - int(user_year)
+                    userinfo = []
+                    ss = {
+                        "name": name[0]['name'],
+                        "sex": name[0]['sex'],
+                        "height": name[0]['height'],
+                        "width": name[0]['width'],
+                        "icon_url": name[0]['icon__icon_url'],
+                        "age": age,
+                        "qianming":name[0]['qinming'],
+                        "qiandaodays":name[0]['qiandaodays'],
+                        "qiandaostatus":name[0]['qiandaostatus'],
+                        "intergral":name[0]['user__intergral__intergral']
+                    }
+                    userinfo.append(ss)
+                    return HttpResponse(json.dumps(userinfo,ensure_ascii=False))
+                else:
+                    return JsonResponse({"code":"415"})
+            else:
+                return JsonResponse({"code":"411"})
+    except Exception as ex:
+        print(ex)
+        return JsonResponse({"code":"500"})
+# 查看用户地址
+def GetAddress(request):
+    if request.method=='POST':
+        try:
+            ADDRESS=[]
+            r = json.loads(request.body)
+            # print(r)
+            token = r['headers']['token']
+            if token:
+                res = openToken(token)
+                if res:
+                    user_id = res['user_id']
+                    # print(user_id)
+                    address=list(models.Address.objects.filter(user_id=user_id).values())
+                    if address:
+                        ADDRESS.append(address)
+                    else:
+                        return JsonResponse({"code":"419"})
+                else:
+                    return JsonResponse({"code":"411"})
+            return HttpResponse(json.dumps(ADDRESS,ensure_ascii=False))
+        except Exception as ex:
+            print(ex)
+            return JsonResponse({"code":"500"})
 
+
+# 七牛云token
+def qiniuToken(request):
+    try:
+        r =request.GET.get('name')
+        # print(r)
+        access_key = 'Ib28fQUwpKMw82G4NNw-TAdDooGGrRWOdadnuamM'
+        secret_key = 'evfP2KZpTRrP3rqO39I7Sc5n18_QxCbvFgSuArxc'
+        # 构建鉴权对象
+        q = Auth(access_key, secret_key)
+        # 要上传的空间
+        bucket_name = 'lotto'
+        # 上传到七牛后保存的文件名
+        file = r
+        print(file)
+        key = str(uuid.uuid4()) + '.' + file.split('.')[-1]
+        # 生成上传 Token，可以指定过期时间等 一天
+        token = q.upload_token(bucket_name, key, 3600)
+        return JsonResponse({"token":token, "filename": key})
+
+    except Exception as ex:
+        return JsonResponse({"code":"500"})
+
+
+# 用户随机更换头像
+def randomIcon(request):
+    allicon = models.Icon.objects.all().values_list('icon_url')
+    # 随机数据库icon表中的用户头像
+    usericon = list(allicon)[random.randint(0, len(allicon))][0]
+    return JsonResponse({"userIcon": usericon})
 # 用户上传头像（保存头像文件名称）（更改用户头像）
 def upIcon(request):
    if request.method=='POST':
@@ -413,8 +331,6 @@ def upIcon(request):
            print(ex)
            return JsonResponse({"code":"500"})
 
-
-
 def upload(requset):
     if requset.method=='POST':
         try:
@@ -430,7 +346,7 @@ def upload(requset):
         except Exception as ex:
             return JsonResponse({"code": "500"})
 
-
+# 查询用户收藏的课程
 def Getaction(request):
     if request.method=='POST':
         try:
@@ -439,16 +355,21 @@ def Getaction(request):
             print('this is getaction')
             # print(r)
             token=r['headers']['token']
-            print('this is token'+token)
+            # print('this is token'+token)
+            # 解析token
             res=openToken(token)
+            # 判断能否解析token若解析失败返回411
             if res:
                 user_id=res['user_id']
-                print(user_id)
+                # print(user_id)
+                # 根据用户id查询用户添加的课程id
                 courseid=list(models.AddCourse.objects.filter(user_id=user_id).values('course_id'))
-                print(courseid)
+                # print(courseid)
+                # 判断能否找到课程id若找不到，返回466
                 if courseid:
                     for i in range(len(courseid)):
                         course_id=courseid[i]['course_id']
+                        # 通过课程id查询课程的详细信息
                         course=course_models.Course.objects.filter(id=course_id).values('name','level__level','picture__url','type__type_name','machine__name','id').first()
                         courses.append(course)
                 else:
@@ -459,6 +380,7 @@ def Getaction(request):
         except Exception as ex:
             return JsonResponse({"code":"555"})
 
+# 删除用户收藏的课程
 def DelAction(request):
     if request.method=='POST':
         try:
@@ -467,8 +389,11 @@ def DelAction(request):
             res = openToken(token)
             if res:
                 user_id = res['user_id']
+                # 根据用户id查询用户添加的课程
                 course = list(models.AddCourse.objects.filter(user_id=user_id).values())
+                # 判断能都找到对应的课程，若课程为空返回466
                 if course:
+                    # 根据用户id和对应的课程id删除对应的课程
                     models.AddCourse.objects.filter(user_id=user_id,course_id=r['id']).delete()
                     return JsonResponse({"code":"209"})
                 else:
@@ -579,6 +504,8 @@ def likeCourseComment(request):
         return JsonResponse({"code":"404"})
 
 
+
+# 收藏商品
 def GetLove(request):
     if request.method=='POST':
         try:
@@ -588,13 +515,17 @@ def GetLove(request):
             res = openToken(token)
             if res:
                 user_id = res['user_id']
-                print(user_id)
+                # print(user_id)
+                # 根据用户id查询对应的收藏的商品
                 love = list(shop_models.loveGood.objects.filter(user_id=user_id).values('good_id'))
-                print(love)
+                # print(love)
+                # 判断能否找到收藏的商品，若找不到，返回421
                 if love:
                     for i in range(len(love)):
                         good_id=love[i]['good_id']
+                        # 根据商品id找到URL_size为1的第一张图片
                         good_url=list(shop_models.GoodPicture.objects.filter(good_id=good_id,size=1).values('url','good_id','good__name','good__intergal'))
+                        # 导入个模块，调用方法是字典可序化，具体什么原理我也不清楚，问伟哥
                         b = OrderedDict()
                         for item in good_url:
                             b.setdefault(item['good_id'], {**item, })
@@ -614,7 +545,7 @@ def GetLove(request):
         except Exception as ex:
             print(ex)
             return JsonResponse({"code":"500"})
-
+# 删除收藏的商品
 def DelLove(request):
     if request.method=='POST':
         try:
@@ -625,8 +556,11 @@ def DelLove(request):
             res=openToken(token)
             if res:
                 user_id=res['user_id']
+                # 根据用户id和相应的商品id查找
                 good=shop_models.loveGood.objects.filter(user_id=user_id,good_id=good_id).values()
+                # 判断能否找到对应的商品，若不能返回422
                 if good:
+                    # 根据用户id和相应的商品id删除对应的数据
                     shop_models.loveGood.objects.filter(user_id=user_id,good_id=good_id).delete()
                 else:
                     return JsonResponse({"code":"422"})
@@ -636,3 +570,84 @@ def DelLove(request):
         except Exception as ex:
             print(ex)
             return JsonResponse({"code":"500"})
+
+
+#验证验证码
+def CheckCode(request):
+
+    if request.method == "POST":
+        try:
+            r = json.loads(request.body)
+            token=r['headers']['token']
+            res=openToken(token)
+            if res:
+                code=r['validate']
+                # print(type(code))
+                # print(code)
+                telephone=r['telephone']
+                now_time = time.time()
+                # print(now_time)
+                # 根据电话找验证码和发送验证码的时间
+                cc=list(models.registertemp.objects.filter(telephone=telephone).values('expiretime','validate'))
+                print(cc)
+                code_time=cc[0]['expiretime']
+                CODE=cc[0]['validate']
+                # print(type(CODE))
+                print(CODE)
+                print(code_time)
+                # 比较发送验证码的时间错和当前时间戳，过期返回429
+                if now_time>code_time:
+                    return JsonResponse({"code":"429"})
+                else:
+                    if CODE==code:
+                        # 验证成功，将用户的telephone 改成 验证额telephone
+                        models.UserInfo.objects.filter(id=res['user_id']).update(telephone=telephone)
+                        return JsonResponse({"code": "223"})
+                    else:
+                        return JsonResponse({"code":"430"})
+
+            else:
+                return JsonResponse({"code":"411"})
+
+        except Exception as ex:
+            print(ex)
+            return JsonResponse({"code":"500"})
+
+#发送验证码
+def SendCode(request):
+    if request.method == "POST":
+        try:
+            r = json.loads(request.body)
+            # print(r)
+            token=r['headers']['token']
+            res=openToken(token)
+            if res:
+                telephone=r['telephone']
+                print(telephone)
+                # 生成随机的四位数
+                c = random.randrange(1000, 9999)
+                code = str(c)
+                # 这个是秒滴里的信息模板
+                smsContent='【乐途运动】您的验证码为{0}，请于{1}分钟内正确输入，如非本人操作，请忽略此短信。'.format(code,5)
+                # 秒滴的一个方法
+                sendIndustrySms(telephone,smsContent)
+                #存入数据库的时间加上过期时间
+                now_date = time.time() + 300
+                telephone1=list(models.registertemp.objects.filter(telephone=telephone).values())
+                # print(telephone1)
+                if telephone1:
+                    # 如果之前数据库中有过该电话的数据，替换验证码
+                    models.registertemp.objects.filter(telephone=telephone).update(validate=code)
+                else:
+                    ss = {
+                        "validate": code,
+                        "expiretime": now_date,
+                        "telephone": telephone
+                    }
+                    models.registertemp.objects.create(**ss)
+            else:
+                return JsonResponse({"code":"411"})
+            return JsonResponse({"code": "222"})
+        except Exception as ex:
+            print(ex)
+            return JsonResponse({"code""500"})

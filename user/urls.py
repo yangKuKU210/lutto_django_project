@@ -15,7 +15,7 @@ urlpatterns = [
     # 修改密码
     url(r'change/', views.changePassword, name='changePassword'),
     #
-    url(r'userinfo/', views.userInfo, name='userInfo'),
+    url(r'userinfo/', views.GetNameByTel, name='GetNameByTel'),
     # 修改用户信息
     url(r'upuser/', views.UpUser, name='UpUser'),
     # 给课程添加评论

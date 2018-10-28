@@ -66,7 +66,7 @@ def search(request):
         index = int(con['index'])
         start = pagesize * (index - 1)
         end = pagesize * index
-        # print(con)
+        print(con)
         if con['searchcontent']:
             conditions["name__regex"] = con['searchcontent']
         if con['levelcon']:
@@ -79,9 +79,9 @@ def search(request):
         # actions=models.ActionLibrary.objects.filter(name__contains=con['searchcontent'])[start:end].values('id','name','info','level__level','muscle__name','picture__url')
         # print(conditions)
         actions = models.ActionLibrary.objects.filter(**conditions)[start:end].values('id', 'name', 'info',
-                                                                                      'level__level', 'machine__name',
-                                                                                      'muscle__name', 'picture__url')
+                                                                                      'level__level', 'machine__name','muscle__name', 'picture__url')
 
+        print(actions)
         return HttpResponse(json.dumps(list(actions), ensure_ascii=False))
     except Exception as ex:
         return JsonResponse({"code": "500"})
